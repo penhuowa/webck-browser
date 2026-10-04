@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WebCookieBrowser 应用图标（矢量源文件）
+  ===============================================================
+  设计说明：
+    · 深蓝渐变底：象征"浏览器 / 网络世界"
+    · 白色地球（经纬线）：象征 Web / 网络
+    · 焦糖色饼干（带咬痕 + 巧克力豆）：象征 Cookie
+    · 两者叠加 = "在浏览器里管理 Cookie"
+  坐标系：viewBox 0 0 108 108（与 Android VectorDrawable 完全一致，
+  因此可 1:1 拷贝到 res/drawable/ic_launcher_foreground.xml）。
+  Android 自适应图标安全区为中心 66x66（即 21..87），本图所有元素均落在安全区内。
+  渲染尺寸 512x512，可直接导出任意尺寸 PNG。
+  （注意：XML 注释里不能出现连续两个 ASCII 连字符，所以分隔线用等号。）
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="512" height="512"
+     viewBox="0 0 108 108"
+     role="img"
+     aria-label="WebCookieBrowser 图标">
+
+  <defs>
+    <linearGradient id="bgGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2B3A67"/>
+      <stop offset="0.55" stop-color="#1E4E9C"/>
+      <stop offset="1" stop-color="#1565C0"/>
+    </linearGradient>
+
+    <linearGradient id="cookieGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFD79A"/>
+      <stop offset="1" stop-color="#E09A38"/>
+    </linearGradient>
+
+    <radialGradient id="glow" cx="0.28" cy="0.22" r="0.85">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 底：渐变 + 左上角高光 -->
+  <rect x="0" y="0" width="108" height="108" rx="24" fill="url(#bgGradient)"/>
+  <rect x="0" y="0" width="108" height="108" rx="24" fill="url(#glow)"/>
+
+  <!-- 地球：外圆 + 赤道 + 经线椭圆（纯描边） -->
+  <g fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round">
+    <circle cx="44" cy="46" r="21"/>
+    <path d="M23,46 L65,46"/>
+    <path d="M34,46 C34,36.6 39,25 44,25 C49,25 54,36.6 54,46
+             C54,55.4 49,67 44,67 C39,67 34,55.4 34,46 Z"/>
+  </g>
+
+  <!--
+    饼干：咬痕不是"再画一个圆用 evenOdd 挖掉"——那样咬痕圆伸出饼干外的那一段
+    会因为 evenOdd（只被 1 条子路径覆盖 = 奇数）被**填充成一块凸起**。
+    正确做法是用一条不自交的路径把缺口直接描出来：
+      从 P1(76,58.88) 沿 r=9 的圆弧（逆时针）凹进饼干走到 P2(82.95,69.78)，
+      再沿饼干自身 r=14 的圆弧顺时针绕行 305° 回到 P1。
+    这样填充和白色描边都只会落在饼干真实轮廓上。
+  -->
+  <g>
+    <path fill="url(#cookieGradient)"
+          stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"
+          d="M76,58.88 A9,9 0 0,0 82.95,69.78 A14,14 0 1,1 76,58.88 Z"/>
+    <g fill="#6B3E1D">
+      <circle cx="63" cy="66" r="2.6"/>
+      <circle cx="74" cy="68" r="2.6"/>
+      <circle cx="62" cy="78" r="2.6"/>
+      <circle cx="73" cy="77" r="2.6"/>
+    </g>
+  </g>
+</svg>

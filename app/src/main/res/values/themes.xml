@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.WebCookieBrowser" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
+        <item name="android:windowBackground">#FFFFFFFF</item>
+    </style>
+
+    <!-- 无痕窗口：窗口底色换成偏紫色调，连最近任务/切换动画里也能一眼区分 -->
+    <style name="Theme.WebCookieBrowser.Incognito" parent="Theme.WebCookieBrowser">
+        <item name="android:windowBackground">#FFF7F5FB</item>
+    </style>
+</resources>

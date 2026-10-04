@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  前台服务通知的小图标：单色白剪影 + 透明背景。
+  刻意不写 android:tint —— 通知小图标由系统统一着色，自己设 tint 反而会
+  在部分 OEM 上出现颜色异常。填充色保持纯白即可。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!--
+      饼干轮廓：咬痕已描进主轮廓，巧克力豆用 evenOdd 挖成孔
+      （豆子完全在饼干内部，所以偶数覆盖 = 挖空，这是 evenOdd 的正确用法）
+    -->
+    <path
+        android:pathData="M16.5,4.206 A6,6 0 0,0 20.966,11.216 A9,9 0 1,1 16.5,4.206 Z
+                          M7,10 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0 Z
+                          M9.5,15 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0 Z
+                          M14,13 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0 Z"
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd" />
+</vector>

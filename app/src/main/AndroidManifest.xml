@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- 浏览网页 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- MCP Server 前台服务 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!--
+        注意：targetSdk >= 34 时，若服务的 foregroundServiceType 为 dataSync，
+        则必须同时声明 FOREGROUND_SERVICE_DATA_SYNC，否则 startForeground() 会抛
+        SecurityException。缺少这一条是运行时崩溃最常见的原因。
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Android 13+ 展示前台服务通知需要该权限（未授权时服务仍可运行，只是通知不显示） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:hardwareAccelerated="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.WebCookieBrowser"
+        android:usesCleartextTraffic="true"
+        tools:targetApi="34">
+
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode|density|fontScale"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.WebCookieBrowser"
+            android:windowSoftInputMode="adjustResize">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- 允许作为浏览器打开 http/https 链接 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+            </intent-filter>
+        </activity>
+
+        <!--
+            无痕窗口：跑在独立进程 :incognito，并在进程启动时调用
+            WebView.setDataDirectorySuffix("incognito") 换成独立的 WebView 数据目录，
+            从而与普通页面彻底隔离 Cookie / 缓存 / LocalStorage。
+            独立进程还有个附带好处：主进程的 MCP 服务读不到无痕页面的任何 Cookie。
+            不导出（exported=false），只有本应用能打开。
+        -->
+        <activity
+            android:name=".IncognitoActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode|density|fontScale"
+            android:exported="false"
+            android:label="@string/incognito_tab_title"
+            android:process=":incognito"
+            android:theme="@style/Theme.WebCookieBrowser.Incognito"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- MCP Server 前台服务：局域网内监听，foregroundServiceType 必须是 dataSync -->
+        <service
+            android:name=".mcp.McpServerService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+    </application>
+
+</manifest>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  API 26-32 的自适应图标：只有 background + foreground 两个子元素。
+  <monochrome>（Android 13 主题图标）放在 mipmap-anydpi-v33/ 里，
+  这样旧版本连"不认识的子元素"都不会遇到，不需要依赖框架的容错行为。
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>

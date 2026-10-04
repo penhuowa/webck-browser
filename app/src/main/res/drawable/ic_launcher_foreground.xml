@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  自适应图标前景层：地球 + 饼干（108x108，安全区 21..87）
+  与 artwork/app_icon.svg 中的坐标一一对应。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- ===== 地球：外圆 ===== -->
+    <path
+        android:pathData="M23,46 a21,21 0 1,0 42,0 a21,21 0 1,0 -42,0 Z"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="4"
+        android:fillColor="#00000000" />
+
+    <!-- 赤道 -->
+    <path
+        android:pathData="M23,46 L65,46"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+
+    <!-- 经线椭圆 -->
+    <path
+        android:pathData="M34,46 C34,36.6 39,25 44,25 C49,25 54,36.6 54,46 C54,55.4 49,67 44,67 C39,67 34,55.4 34,46 Z"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="4"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+
+    <!--
+      ===== 饼干主体：咬痕直接描进轮廓里 =====
+      注意不要用"外圆 + 咬痕圆 + evenOdd"的写法：咬痕圆伸出饼干外的那一段
+      只被 1 条子路径覆盖（奇数），会被填充成一块不该存在的凸起。
+      下面这条路径不自交：先沿 r=9 的缺口圆弧凹进去，再沿 r=14 的饼干圆弧绕回来。
+    -->
+    <path
+        android:pathData="M76,58.88 A9,9 0 0,0 82.95,69.78 A14,14 0 1,1 76,58.88 Z"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineJoin="round">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="55"
+                android:startY="57"
+                android:endX="83"
+                android:endY="85">
+                <item android:offset="0" android:color="#FFFFD79A" />
+                <item android:offset="1" android:color="#FFE09A38" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- ===== 巧克力豆 ===== -->
+    <path
+        android:pathData="M60.4,66 a2.6,2.6 0 1,0 5.2,0 a2.6,2.6 0 1,0 -5.2,0 Z
+                          M71.4,68 a2.6,2.6 0 1,0 5.2,0 a2.6,2.6 0 1,0 -5.2,0 Z
+                          M59.4,78 a2.6,2.6 0 1,0 5.2,0 a2.6,2.6 0 1,0 -5.2,0 Z
+                          M70.4,77 a2.6,2.6 0 1,0 5.2,0 a2.6,2.6 0 1,0 -5.2,0 Z"
+        android:fillColor="#FF6B3E1D" />
+</vector>
