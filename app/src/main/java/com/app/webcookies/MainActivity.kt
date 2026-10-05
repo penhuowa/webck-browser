@@ -8,6 +8,8 @@ import android.graphics.Bitmap
 import android.os.Build
 import android.os.Bundle
 import android.os.Message
+import android.os.SystemClock
+import android.util.Log
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -82,6 +84,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -114,7 +117,11 @@ import com.app.webcookies.ui.icon.WebCookieAppLogo
 import com.app.webcookies.ui.icon.WebCookieMarkIcon
 import com.app.webcookies.ui.theme.MonoTextStyle
 import com.app.webcookies.ui.theme.WebCookieTheme
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import org.json.JSONTokener
@@ -124,6 +131,11 @@ import kotlin.coroutines.resume
 // ---------------------------------------------------------------------------
 // 常量
 // ---------------------------------------------------------------------------
+
+private const val TAG = "webck"
+
+/** CookieManager.flush() 的最小间隔：连续跳转时没必要每个页面都写一次盘。 */
+private const val FLUSH_MIN_INTERVAL_MS = 3000L
 
 private const val HOME_URL = "https://www.bing.com/"
 private const val SEARCH_URL = "https://www.bing.com/search?q="
@@ -174,7 +186,9 @@ class MainActivity : ComponentActivity() {
 internal fun BrowserScreen(
     incomingUrl: String?,
     /** 无痕模式：换配色、顶部显示提示条、菜单项也不同。 */
-    incognito: Boolean = false
+    incognito: Boolean = false,
+    /** 无痕窗口传 `{ finish() }`。菜单里的「退出无痕模式」用它，普通窗口不传。 */
+    onExitIncognito: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val controller = remember { BrowserController(context, incognito) }
@@ -193,7 +207,6 @@ internal fun BrowserScreen(
         onDispose { controller.destroyAll() }
     }
 
-    var addressText by remember { mutableStateOf("") }
     var showMenu by remember { mutableStateOf(false) }
     var showCookieSheet by remember { mutableStateOf(false) }
     var showMcpPanel by remember { mutableStateOf(false) }
@@ -203,11 +216,6 @@ internal fun BrowserScreen(
 
     val tab = controller.activeTab
     val webView = tab?.webView
-
-    // 页面导航完成后回填地址栏；用户正在输入时 tab.url 不变，所以不会被打断
-    LaunchedEffect(tab?.id, tab?.url) {
-        addressText = tab?.url.orEmpty()
-    }
 
     // 系统返回键优先用于网页后退
     BackHandler(enabled = tab?.canGoBack == true) { webView?.goBack() }
@@ -226,12 +234,9 @@ internal fun BrowserScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             AddressField(
-                value = addressText,
-                onValueChange = { addressText = it },
-                secure = addressText.startsWith("https://"),
-                onSubmit = {
-                    val target = normalizeInput(addressText)
-                    addressText = target
+                url = tab?.url.orEmpty(),
+                onSubmit = { raw ->
+                    val target = normalizeInput(raw)
                     val current = webView
                     if (current != null) current.loadUrl(target) else controller.newTab(target)
                 },
@@ -249,18 +254,17 @@ internal fun BrowserScreen(
                 BrowserMenu(
                     expanded = showMenu,
                     incognito = incognito,
+                    onExitIncognito = onExitIncognito,
                     onDismiss = { showMenu = false },
                     onNewTab = {
                         showMenu = false
                         controller.newTab(HOME_URL)
-                        addressText = HOME_URL
                     },
                     onNewIncognitoTab = {
                         showMenu = false
                         if (incognito) {
                             // 已经在无痕窗口里了，再开一个无痕标签页即可
                             controller.newTab(HOME_URL)
-                            addressText = HOME_URL
                         } else {
                             // 普通窗口 -> 拉起独立进程的无痕窗口
                             openIncognito(context)
@@ -443,12 +447,18 @@ private fun LoadProgressBar(tab: BrowserTab?) {
 
 @Composable
 private fun AddressField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    secure: Boolean,
-    onSubmit: () -> Unit,
+    /** 当前页面的真实 URL。它变化时（导航完成）才会覆盖输入框里的文字。 */
+    url: String,
+    onSubmit: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // 【v1.02 性能】输入状态刻意放在 AddressField 自己身上，而不是 BrowserScreen。
+    // 放在上层的话，每敲一个字符都会让整个浏览器界面重组
+    //（含 AndroidView 的 update 回调），打字明显发卡。
+    var value by remember { mutableStateOf(url) }
+    LaunchedEffect(url) { if (url != value) value = url }
+    val secure = value.startsWith("https://")
+
     Surface(
         modifier = modifier.height(42.dp),
         shape = RoundedCornerShape(21.dp),
@@ -472,7 +482,7 @@ private fun AddressField(
 
             BasicTextField(
                 value = value,
-                onValueChange = onValueChange,
+                onValueChange = { value = it },
                 singleLine = true,
                 textStyle = MaterialTheme.typography.bodyMedium.copy(
                     color = MaterialTheme.colorScheme.onSurface
@@ -482,7 +492,7 @@ private fun AddressField(
                     keyboardType = KeyboardType.Uri,
                     imeAction = ImeAction.Go
                 ),
-                keyboardActions = KeyboardActions(onGo = { onSubmit() }),
+                keyboardActions = KeyboardActions(onGo = { onSubmit(value) }),
                 modifier = Modifier.weight(1f),
                 decorationBox = { innerTextField ->
                     Box(contentAlignment = Alignment.CenterStart) {
@@ -499,7 +509,7 @@ private fun AddressField(
             )
 
             if (value.isNotEmpty()) {
-                IconButton(onClick = { onValueChange("") }, modifier = Modifier.size(20.dp)) {
+                IconButton(onClick = { value = "" }, modifier = Modifier.size(20.dp)) {
                     Icon(Icons.Default.Close, contentDescription = "清空", modifier = Modifier.size(14.dp))
                 }
             }
@@ -534,6 +544,7 @@ private fun BrowserMenu(
     onDismiss: () -> Unit,
     onNewTab: () -> Unit,
     onNewIncognitoTab: () -> Unit,
+    onExitIncognito: (() -> Unit)?,
     onClearHistory: () -> Unit,
     onWipeAll: () -> Unit,
     onMcp: () -> Unit,
@@ -554,6 +565,12 @@ private fun BrowserMenu(
                 onClick = {},
                 enabled = false
             )
+        }
+        // v1.02：给无痕窗口一个明确的出口。
+        // 以前只能靠系统返回键，而 SPA 页面（比如 DeepSeek）会push 很多 history 条目，
+        // 返回键一直被 BackHandler 用来做页内后退，看起来就像「退不出去」。
+        if (incognito && onExitIncognito != null) {
+            MenuRow(Icons.Default.Close, "退出无痕模式", onExitIncognito)
         }
         MenuRow(AppIcons.History, "清除浏览记录", onClearHistory)
         MenuRow(Icons.Default.Delete, "将浏览器记录数据全部删除", onWipeAll, destructive = true)
@@ -995,6 +1012,7 @@ private fun AboutDialog(onDismiss: () -> Unit, onOpenSite: () -> Unit) {
 // ---------------------------------------------------------------------------
 
 /** 一个标签页：WebView + 可观察的 UI 状态。 */
+@Stable
 private class BrowserTab(
     val id: String,
     val webView: WebView,
@@ -1015,6 +1033,7 @@ private class BrowserTab(
  * `AndroidView`。
  */
 @SuppressLint("SetJavaScriptEnabled")
+@Stable
 private class BrowserController(
     private val context: Context,
     private val incognito: Boolean
@@ -1026,6 +1045,12 @@ private class BrowserController(
         private set
 
     private var container: FrameLayout? = null
+
+    /** 后台 IO 作用域：把 CookieManager.flush() 这类同步磁盘写挪出主线程。 */
+    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    @Volatile
+    private var lastFlushAt = 0L
 
     val activeTab: BrowserTab? get() = tabs.firstOrNull { it.id == activeId }
     val activeWebView: WebView? get() = activeTab?.webView
@@ -1046,7 +1071,15 @@ private class BrowserController(
         syncActive()
     }
 
-    fun newTab(url: String): BrowserTab {
+    /**
+     * 新建标签页。
+     *
+     * [url] 传 null 表示「先建好，但先不激活、也不加载」——
+     * 这是给网页弹窗（`window.open` / `target="_blank"`）用的：
+     * 交给 WebView 弹窗传输通道的那个 WebView **必须还没有挂到视图树上**，
+     * 否则会闪退（原因见 onCreateWindow 的注释）。
+     */
+    fun newTab(url: String? = HOME_URL): BrowserTab {
         val webView = WebView(context)
         val tab = BrowserTab(
             id = UUID.randomUUID().toString(),
@@ -1055,10 +1088,25 @@ private class BrowserController(
         )
         configure(webView, tab)
         tabs.add(tab)
-        activeId = tab.id
-        webView.loadUrl(url)
-        syncActive()
+        if (url != null) {
+            activeId = tab.id
+            webView.loadUrl(url)
+            syncActive()
+        }
         return tab
+    }
+
+    /** 把一个已经存在的标签页切为当前页并挂载它的 WebView。 */
+    fun activateTab(tab: BrowserTab) {
+        activeId = tab.id
+        syncActive()
+    }
+
+    /** 丢掉一个还没用上的标签页（弹窗创建失败时回滚）。 */
+    fun discardTab(tab: BrowserTab) {
+        tabs.remove(tab)
+        (tab.webView.parent as? android.view.ViewGroup)?.removeView(tab.webView)
+        runCatching { tab.webView.destroy() }
     }
 
     fun selectTab(tab: BrowserTab) {
@@ -1087,6 +1135,19 @@ private class BrowserController(
         }
     }
 
+    /**
+     * 把 Cookie 落盘。
+     *
+     * [CookieManager.flush] 是**同步磁盘写**，以前每个页面加载完都在主线程做一次，
+     * 是「有点卡」的主要来源之一。现在丢到 IO 线程，并且 3 秒内最多落一次盘。
+     */
+    private fun flushCookies(force: Boolean = false) {
+        val now = SystemClock.elapsedRealtime()
+        if (!force && now - lastFlushAt < FLUSH_MIN_INTERVAL_MS) return
+        lastFlushAt = now
+        ioScope.launch { runCatching { CookieManager.getInstance().flush() } }
+    }
+
     /** 把当前活动标签页的 WebView 放进容器。 */
     fun syncActive() {
         val frame = container ?: return
@@ -1112,7 +1173,8 @@ private class BrowserController(
     fun wipeAll() {
         val cookieManager = CookieManager.getInstance()
         cookieManager.removeAllCookies { /* 回调只用于日志，无需处理 */ }
-        cookieManager.flush()
+        // flush 同样是同步磁盘写，别放主线程
+        ioScope.launch { runCatching { CookieManager.getInstance().flush() } }
 
         tabs.forEach { tab ->
             runCatching {
@@ -1138,6 +1200,7 @@ private class BrowserController(
     }
 
     fun destroyAll() {
+        ioScope.cancel()
         BrowserBridge.documentCookieProvider = null
         BrowserBridge.currentUrl = null
         tabs.forEach { tab ->
@@ -1235,11 +1298,10 @@ private class BrowserController(
                 tab.canGoForward = view?.canGoForward() == true
                 tab.progress = 1f
 
-                // 页面加载完成后立刻把 Cookie 落盘，避免进程被杀导致丢失。
+                // 页面加载完成后把 Cookie 落盘，避免进程被杀导致丢失。
+                // 走 flushCookies()：IO 线程 + 节流，别在主线程做同步磁盘写。
                 // 无痕进程不落盘 —— 本来就不该在磁盘上留下痕迹。
-                if (!incognito) {
-                    runCatching { CookieManager.getInstance().flush() }
-                }
+                if (!incognito) flushCookies()
 
                 if (tab.id == activeId) {
                     BrowserBridge.currentUrl = tab.url
@@ -1263,19 +1325,47 @@ private class BrowserController(
                 if (!title.isNullOrBlank()) tab.title = title
             }
 
+            /**
+             * 把 `window.open()` / `target="_blank"` 变成新标签页。
+             *
+             * 【v1.02 修的闪退】旧代码有两个问题：
+             *  1. 它调用 newTab() 时会把新 WebView **立刻挂进 FrameLayout**，
+             *     但交给 WebViewTransport 的 WebView 必须还没有 attach。
+             *     挂着的情况下 sendToTarget()，异常是在 WebView 内部的 Handler 里抛的，
+             *     外层 try/catch 根本接不住 —— 表现就是点一下按钮直接闪退。
+             *  2. 它还顺手 loadUrl("about:blank")，进一步干扰弹窗接管。
+             *
+             * 正确顺序：建好但不挂载、不加载 -> 交给 transport -> sendToTarget()
+             * -> 交接成功后（activateTab）再挂进容器。
+             * 任何一步失败都返回 false，让链接退回当前标签页加载，而不是抛给系统。
+             *
+             * 另外，非用户手势触发的弹窗（广告、追踪脚本常见）直接返回 false，
+             * 不开新窗口，少一类不可控情况。
+             */
             override fun onCreateWindow(
                 view: WebView?,
                 isDialog: Boolean,
                 isUserGesture: Boolean,
                 resultMsg: Message?
             ): Boolean {
-                // 先落到非空的局部变量，否则 resultMsg 在后面不会被智能转换
                 val message = resultMsg ?: return false
                 val transport = message.obj as? WebView.WebViewTransport ?: return false
-                val newTab = newTab("about:blank")
-                transport.webView = newTab.webView
-                message.sendToTarget()
-                return true
+                if (!isUserGesture) return false
+
+                var popupTab: BrowserTab? = null
+                return try {
+                    // url = null：建好、配置好，但不挂载也不 loadUrl
+                    popupTab = newTab(url = null)
+                    transport.webView = popupTab.webView
+                    message.sendToTarget()
+                    // 交接完成，这时才切为当前标签页并挂进容器
+                    activateTab(popupTab)
+                    true
+                } catch (t: Throwable) {
+                    Log.w(TAG, "创建弹窗标签页失败，回退到当前标签页加载", t)
+                    popupTab?.let { runCatching { discardTab(it) } }
+                    false
+                }
             }
         }
     }

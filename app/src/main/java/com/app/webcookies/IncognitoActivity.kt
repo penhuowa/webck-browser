@@ -11,6 +11,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.view.WindowCompat
 import com.app.webcookies.ui.theme.WebCookieTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * 无痕窗口。
@@ -35,6 +39,14 @@ import com.app.webcookies.ui.theme.WebCookieTheme
  */
 class IncognitoActivity : ComponentActivity() {
 
+    /**
+     * 收尾用的协程作用域。
+     *
+     * 刻意**不绑定** Activity 生命周期：Activity 都销毁了，还要它把数据清干净。
+     * 用 IO 线程是因为清理全是同步磁盘写（见 onDestroy 的说明）。
+     */
+    private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // 必须在任何 WebView 实例被创建之前调用，否则会抛 IllegalStateException。
         // 放在 super.onCreate() 之前，保证不会有人抢在前面初始化 WebView。
@@ -53,7 +65,15 @@ class IncognitoActivity : ComponentActivity() {
         setContent {
             // incognito = true 会切到偏紫的配色，配合顶部的无痕提示条做视觉区分
             WebCookieTheme(incognito = true) {
-                BrowserScreen(incomingUrl = startUrl, incognito = true)
+                BrowserScreen(
+                    incomingUrl = startUrl,
+                    incognito = true,
+                    // 菜单里的「退出无痕模式」用它。
+                    // 以前无痕窗口没有任何显式出口，只能靠系统返回键，
+                    // 而 SPA 页面（DeepSeek 之类）会 push 很多 history 条目，
+                    // 返回键被 BackHandler 一直用来做页内后退，用户会觉得「退不出去」。
+                    onExitIncognito = { finish() }
+                )
             }
         }
     }
@@ -62,15 +82,22 @@ class IncognitoActivity : ComponentActivity() {
         if (isFinishing) {
             // 关掉无痕窗口 = 抹掉这个进程数据目录里的全部痕迹。
             // 因为数据目录是独立的，这里只会清掉无痕自己的数据，碰不到普通页面的 Cookie。
-            runCatching {
-                CookieManager.getInstance().removeAllCookies(null)
-                CookieManager.getInstance().flush()
-            }.onFailure { Log.w(TAG, "清除无痕 Cookie 失败", it) }
+            //
+            // 【v1.02 修的 bug「退不出无痕模式」】
+            // 以前这段是直接写在 onDestroy 里的，而 CookieManager.flush() 是**同步磁盘写**、
+            // WebStorage.deleteAllData() 也要落盘 —— 卡在主线程上，退出时界面会僵住甚至 ANR，
+            // 看起来就是「点退出没反应」。现在整段扔到 IO 线程，onDestroy 立刻返回。
+            cleanupScope.launch {
+                runCatching {
+                    CookieManager.getInstance().removeAllCookies(null)
+                    CookieManager.getInstance().flush()
+                }.onFailure { Log.w(TAG, "清除无痕 Cookie 失败", it) }
 
-            runCatching { WebStorage.getInstance().deleteAllData() }
-                .onFailure { Log.w(TAG, "清除无痕站点数据失败", it) }
+                runCatching { WebStorage.getInstance().deleteAllData() }
+                    .onFailure { Log.w(TAG, "清除无痕站点数据失败", it) }
 
-            Log.i(TAG, "无痕窗口已关闭，本地数据已清除")
+                Log.i(TAG, "无痕窗口已关闭，本地数据已清除")
+            }
         }
         super.onDestroy()
     }

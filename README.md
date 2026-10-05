@@ -7,6 +7,9 @@
 
 <img src="artwork/app_icon_preview.png" width="140">
 
+## 下载
+
+**[下载最新版 APK](https://github.com/penhuowa/webck-browser/releases/latest)**
 
 debug 签名，自己装着用没问题；要上架应用商店得换正式签名。支持 Android 8.0+（minSdk 26，targetSdk 37）。
 
