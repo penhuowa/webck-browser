@@ -872,31 +872,6 @@ private fun McpPanelDialog(onDismiss: () -> Unit, onMessage: (String) -> Unit) {
                     )
                 }
 
-                // ---- 安全提醒（v1.01 起已无鉴权）----
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.10f),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(
-                            text = "无鉴权提醒",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = "v1.01 起已移除安全 Token。只要知道地址，" +
-                                "同一局域网内的任何人都能读取本机 Cookie。" +
-                                "请只在可信网络下开启，用完及时关掉。",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

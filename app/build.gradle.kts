@@ -23,10 +23,9 @@ android {
         //  · 自适应图标（mipmap-anydpi-v26）从 26 起得到原生支持，无需再准备 PNG 兜底
         minSdk = 26
         targetSdk = 37
-        versionCode = 3
-        // v1.02：修「无痕模式退不出去」与「网页弹窗闪退」；
-        //        性能优化：CookieManager.flush 移出主线程并节流、地址栏输入状态下沉
-        versionName = "1.02"
+        versionCode = 4
+        // v1.03：去掉 MCP 面板里的「无鉴权提醒」
+        versionName = "1.03"
 
         vectorDrawables {
             useSupportLibrary = true
